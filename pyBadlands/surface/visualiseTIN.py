@@ -77,7 +77,7 @@ def output_cellsIDs(lGIDs, inIDs, visXlim, visYlim, coords, cells):
 
     return lGIDs[allInside], outcell[localCell2] + 1
 
-def write_hdf5(folder, h5file, step, coords, elevation, rain, discharge, cumdiff,
+def write_hdf5(folder, h5file, step, coords, elevation, fillH, rain, discharge, cumdiff,
                cells, rank, rainOn, eroOn, erodibility):
     """
     This function writes for each processor the HDF5 file containing surface information.
@@ -96,8 +96,14 @@ def write_hdf5(folder, h5file, step, coords, elevation, rain, discharge, cumdiff
     variable : coords
         Numpy float-type array containing X, Y coordinates of the local TIN nodes.
 
+    variable : sealevel
+        Level of sea water
+
     variable : elevation
         Numpy float-type array containing Z coordinates of the local TIN nodes.
+
+    variable : fillH
+        Numpy float-type array containing water surface elevation of the local TIN nodes.
 
     variable : rain
         Numpy float-type array containing rain value of the local TIN nodes.
@@ -135,6 +141,9 @@ def write_hdf5(folder, h5file, step, coords, elevation, rain, discharge, cumdiff
         f.create_dataset('cells',shape=(len(cells[:,0]),3), dtype='int32', compression='gzip')
         f["cells"][:,:] = cells
 
+        f.create_dataset('waterH',shape=(len(fillH),1), dtype='float32', compression='gzip')
+        f["waterH"][:,0] = fillH
+
         f.create_dataset('discharge',shape=(len(discharge), 1), dtype='float32', compression='gzip')
         f["discharge"][:,0] = discharge
 
@@ -149,7 +158,7 @@ def write_hdf5(folder, h5file, step, coords, elevation, rain, discharge, cumdiff
         f.create_dataset('cumdiff',shape=(len(discharge), 1), dtype='float32', compression='gzip')
         f["cumdiff"][:,0] = cumdiff
 
-def write_hdf5_flexure(folder, h5file, step, coords, elevation, rain, discharge, cumdiff,
+def write_hdf5_flexure(folder, h5file, step, coords, elevation, fillH, rain, discharge, cumdiff,
                        cumflex, cells, rank, rainOn, eroOn, erodibility):
     """
     This function writes for each processor the HDF5 file containing surface information.
@@ -170,6 +179,9 @@ def write_hdf5_flexure(folder, h5file, step, coords, elevation, rain, discharge,
 
     variable : elevation
         Numpy float-type array containing Z coordinates of the local TIN nodes.
+
+    variable : fillH
+        Numpy float-type array containing water surface elevation of the local TIN nodes.
 
     variable : rain
         Numpy float-type array containing rain value of the local TIN nodes.
@@ -209,6 +221,9 @@ def write_hdf5_flexure(folder, h5file, step, coords, elevation, rain, discharge,
 
         f.create_dataset('cells',shape=(len(cells[:,0]),3), dtype='int32', compression='gzip')
         f["cells"][:,:] = cells
+
+        f.create_dataset('waterH',shape=(len(fillH),1), dtype='float32', compression='gzip')
+        f["waterH"][:,0] = fillH
 
         f.create_dataset('discharge',shape=(len(discharge), 1), dtype='float32', compression='gzip')
         f["discharge"][:,0] = discharge
@@ -334,6 +349,11 @@ def write_xmf(folder, xmffile, xdmffile, step, t, elems, nodes, h5file, sealevel
         f.write('          <DataItem Format="HDF" NumberType="Float" Precision="4" ')
         f.write('Dimensions="%d 3">%s:/coords</DataItem>\n'%(nodes[p],pfile))
         f.write('         </Geometry>\n')
+
+        f.write('         <Attribute Type="Scalar" Center="Node" Name="waterH">\n')
+        f.write('          <DataItem Format="HDF" NumberType="Float" Precision="4" ')
+        f.write('Dimensions="%d 1">%s:/waterH</DataItem>\n'%(nodes[p],pfile))
+        f.write('         </Attribute>\n')
 
         f.write('         <Attribute Type="Scalar" Center="Node" Name="Discharge">\n')
         f.write('          <DataItem Format="HDF" NumberType="Float" Precision="4" ')

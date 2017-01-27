@@ -47,20 +47,16 @@ def streamflow(input, FVmesh, recGrid, force, hillslope, flow, elevation, \
         # Build an initial depression-less surface at start time if required
         if input.tStart == tNow and input.nopit == 1:
             sea_lvl =  force.sealevel - input.sealimit
-            elevation = elevationTIN.pit_stack_PD(elevation,sea_lvl,input.nopit)
+            elevation = elevationTIN.pit_stack_PD(elevation,sea_lvl,input.nopit,force.sealevel)
             fillH = elevation
     else:
-        # fillH = elevationTIN.pit_filling_PD(elevation, FVmesh.neighbours,
-        #                            recGrid.boundsPt, force.sealevel-input.sealimit
-        #                            input.fillmax)
         sea_lvl =  force.sealevel - input.sealimit
-        #fillH = elevationTIN.pit_stack_PD(elevation,sea_lvl)
         # Build an initial depression-less surface at start time if required
         if input.tStart == tNow and input.nopit == 1 :
-            fillH = elevationTIN.pit_stack_PD(elevation,sea_lvl,input.nopit)
+            fillH = elevationTIN.pit_stack_PD(elevation,sea_lvl,input.nopit,force.sealevel)
             elevation = fillH
         else:
-            fillH = elevationTIN.pit_stack_PD(elevation,sea_lvl,0)
+            fillH = elevationTIN.pit_stack_PD(elevation,sea_lvl,0,force.sealevel)
 
     if rank == 0 and verbose and input.spl and not input.filter:
         print " -   depression-less algorithm PD with stack", time.clock() - walltime
@@ -79,12 +75,12 @@ def streamflow(input, FVmesh, recGrid, force, hillslope, flow, elevation, \
     if rank == 0 and verbose:
         print " -   compute receivers parallel ", time.clock() - walltime
 
-    # Distribute evenly local minimas to processors
+    # Distribute evenly local minimas to processors on filled surface
     walltime = time.clock()
     flow.localbase = np.array_split(flow.base, size)[rank]
-    flow.ordered_node_array()
+    flow.ordered_node_array_filled()
     if rank == 0 and verbose:
-        print " -   compute stack order locally ", time.clock() - walltime
+        print " -   compute stack order locally for filled surface", time.clock() - walltime
 
     walltime = time.clock()
     stackNbs = comm.allgather(len(flow.localstack))
@@ -93,7 +89,27 @@ def streamflow(input, FVmesh, recGrid, force, hillslope, flow, elevation, \
                     recvbuf=[globalstack, (stackNbs, None), mpi.INT])
     flow.stack = globalstack
     if rank == 0 and verbose:
-        print " -   send stack order globally ", time.clock() - walltime
+        print " -   send stack order for filled surface globally ", time.clock() - walltime
+
+    # Distribute evenly local minimas on real surface
+    if input.nHillslope is False:
+        walltime = time.clock()
+        flow.localbase1 = np.array_split(flow.base1, size)[rank]
+        flow.ordered_node_array_elev()
+        if rank == 0 and verbose:
+            print " -   compute stack order locally for real surface", time.clock() - walltime
+
+        walltime = time.clock()
+        stackNbs1 = comm.allgather(len(flow.localstack1))
+        globalstack1 = np.zeros(sum(stackNbs1), dtype=flow.localstack1.dtype)
+        comm.Allgatherv(sendbuf=[flow.localstack1, mpi.INT],
+                        recvbuf=[globalstack1, (stackNbs1, None), mpi.INT])
+        flow.stack1 = globalstack1
+        if rank == 0 and verbose:
+            print " -   send stack order for real surface globally ", time.clock() - walltime
+
+        # Compute a unique ID for each local depression and their downstream draining nodes
+        flow.compute_parameters_depression(fillH,elevation,FVmesh.control_volumes,force.sealevel)
 
     # Compute discharge
     walltime = time.clock()

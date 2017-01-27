@@ -42,6 +42,7 @@ class xmlParser:
         self.perc_dep = 0.
         self.slp_cr = 0.
         self.fillmax = 1.
+        self.diffslp = 0.05
         self.Afactor = 1
         self.nopit = 0
 
@@ -61,7 +62,7 @@ class xmlParser:
         self.urcXY = None
 
         self.seapos = 0.
-        self.sealimit = 100.
+        self.sealimit = 10000.
         self.seafile = None
 
         self.disp3d = False
@@ -314,7 +315,7 @@ class xmlParser:
             if element is not None:
                 self.sealimit = float(element.text)
             else:
-                self.sealimit = 100.
+                self.sealimit = 10000.
             element = None
             element = sea.find('curve')
             if element is not None:
@@ -325,7 +326,7 @@ class xmlParser:
                 self.seafile = None
         else:
             self.seapos = 0.
-            self.sealimit = 100.
+            self.sealimit = 10000.
             self.seafile = None
 
         # Extract Tectonic structure information

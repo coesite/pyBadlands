@@ -282,8 +282,8 @@ class Model(object):
                     outStrata = 1
                 checkPoints.write_checkpoints(self.input, self.recGrid, self.lGIDs, self.inIDs, self.tNow,
                                             self.FVmesh, self.tMesh, self.force, self.flow, self.rain,
-                                            self.elevation, self.cumdiff, self.outputStep, self.mapero,
-                                            self.cumflex)
+                                            self.elevation, self.fillH, self.cumdiff, self.outputStep,
+                                            self.mapero, self.cumflex)
                 # Update next display time
                 self.force.next_display += self.input.tDisplay
                 self.outputStep += 1
@@ -335,7 +335,7 @@ class Model(object):
         # Create checkpoint files and write HDF5 output
         checkPoints.write_checkpoints(self.input, self.recGrid, self.lGIDs, self.inIDs, self.tNow, \
                                 self.FVmesh, self.tMesh, self.force, self.flow, self.rain, \
-                                self.elevation, self.cumdiff, self.outputStep, self.mapero, \
+                                self.elevation, self.fillH, self.cumdiff, self.outputStep, self.mapero, \
                                 self.cumflex)
         self.force.next_display += self.input.tDisplay
         self.outputStep += 1
