@@ -11,6 +11,7 @@ This module encapsulates functions related to Badlands stream network computatio
 """
 
 import math
+import time
 import numpy
 import warnings
 import mpi4py.MPI as mpi
@@ -541,6 +542,8 @@ class flowNetwork:
 
         # Stream power law
         elif self.spl:
+            # time0 = time.clock()
+            # time1 = time.clock()
             dt = 5000.
             depo, ero = FLOWalgo.flowcompute.qs_max(self.localstack,self.receivers,self.pitID,self.pitVolume, \
                      self.pitDrain,self.xycoords,Acell,self.maxh,self.maxdep,self.discharge,fillH,elev,rivqs, \
@@ -548,6 +551,8 @@ class flowNetwork:
             comm.Allreduce(mpi.IN_PLACE,depo,op=mpi.MAX)
             comm.Allreduce(mpi.IN_PLACE,ero,op=mpi.MIN)
             volChange = depo+ero
+            # print "   - Compute sediment volumetric flux ", time.clock() - time1
+            # time1 = time.clock()
 
             # Find overfilling catchments
             ids = numpy.where(numpy.logical_and(volChange>self.pitVolume,self.pitVolume>0.))[0]
@@ -568,7 +573,9 @@ class flowNetwork:
                         dtnew = dt*percOver.min()
             dtnew = float(round(dtnew-0.5,0))
             dtnew = max(self.mindt,dtnew)
-
+            # print "   - Compute depressions connectivity ", time.clock() - time1
+            # time1 = time.clock()
+            # print 'limited dt',dtnew
             if dtnew < dt:
                 depo, ero = FLOWalgo.flowcompute.qs_max(self.localstack,self.receivers,self.pitID,self.pitVolume, \
                     self.pitDrain,self.xycoords,Acell,self.maxh,self.maxdep,self.discharge,fillH,elev,rivqs, \
@@ -576,6 +583,8 @@ class flowNetwork:
                 comm.Allreduce(mpi.IN_PLACE,depo,op=mpi.MAX)
                 comm.Allreduce(mpi.IN_PLACE,ero,op=mpi.MIN)
                 volChange = depo+ero
+                # print "   - Compute volumetric fluxes with updated dt ", time.clock() - time1
+                # time1 = time.clock()
 
                 # Ensure no overfilling remains
                 ids = numpy.where(numpy.logical_and(volChange>self.pitVolume,self.pitVolume>0.))[0]
@@ -591,6 +600,8 @@ class flowNetwork:
             # Compute erosion
             erosion = numpy.zeros(len(ero))
             erosion[insideIDs] = ero[insideIDs]/Acell[insideIDs]
+            # print "   - Compute erosion ", time.clock() - time1
+            # time1 = time.clock()
 
             # Compute deposition
             deposition = numpy.zeros(len(depo))
@@ -603,7 +614,8 @@ class flowNetwork:
             if len(plainID) > 0:
                 deposition[plainID] = depo[plainID]/Acell[plainID]
                 depo[plainID] = 0.
-                print deposition[plainID].min(),deposition[plainID].max()
+                # print "   - Compute plain deposition ", time.clock() - time1
+                # time1 = time.clock()
 
             # Compute land pit deposition
             pitIDs = numpy.where(numpy.logical_and(self.pitVolume>0.,fillH>sealevel))[0]
@@ -619,6 +631,8 @@ class flowNetwork:
                 tmp = numpy.where(perc>0.)
                 deposition[tmp] = (fillH[tmp]-elev[tmp])*perc[tmp]
                 depo[landIDs] = 0.
+                # print "   - Compute land pit deposition ", time.clock() - time1
+                # time1 = time.clock()
 
             # Compute water deposition
             tmp = numpy.where(numpy.logical_and(depo>0.,elev<=sealevel))[0]
@@ -628,13 +642,17 @@ class flowNetwork:
                 seavol[seaIDs] = depo[seaIDs]
                 # Distribute marine sediments based on angle of repose
                 seadep = PDalgo.pdstack.marine_sed(elev, seavol, sealevel)
-                dsmooth = 1.5
+                # print "   - Compute marine deposition ", time.clock() - time1
+                # time1 = time.clock()
+                dsmooth = 2.
                 smthdep = self.gaussian_diffusion(seadep,dsmooth)
                 frac = numpy.sum(seadep*Acell)/numpy.sum(smthdep*Acell)
                 deposition = deposition+smthdep*frac
                 depo[seaIDs] = 0.
+                # print "   - Smooth marine deposition ", time.clock() - time1
+                # time1 = time.clock()
 
-            # Is there some remaining deposit volume?
+            # Is there some remaining deposits?
             tmp = numpy.where(depo>0)[0]
             remainIDs = numpy.intersect1d(tmp,insideIDs)
             if len(remainIDs)>0:
@@ -646,6 +664,7 @@ class flowNetwork:
                                 'Z':elev[:]+deposition[:]+erosion[:],'DZ':erosion[:]+deposition[:]})
             df.to_csv('volume.csv',columns=['X', 'Y', 'V', 'Z', 'DZ'], sep=',', index=False)
 
+            # print "   - Total sediment flux time ", time.clock() - time0
             dt = 1.
             sedflux, newdt = FLOWalgo.flowcompute.sedflux_nocapacity(self.localstack,self.receivers,self.xycoords, \
                      Acell,xymin,xymax,self.maxh,self.maxdep,self.discharge,fillH,elev,rivqs, \

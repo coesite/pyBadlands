@@ -36,7 +36,7 @@ module pdstack
 
   ! Sediment distribution parameters
   integer, parameter :: diff_nb = 2
-  integer, parameter :: max_it_cyc = 10000
+  integer, parameter :: max_it_cyc = 5000
 
   real(kind=8), parameter :: diff_res = 1.e-4
   real(kind=8), parameter :: toplimit = 1.e10
@@ -181,17 +181,16 @@ contains
         loop: do p = 1, 20
           if(neighbours(i,p)<0) exit loop
           if(elev(i)<sealevel)then
-            topnew = elev(neighbours(i,p)+1) + marineslope*edge_dist(neighbours(i,p)+1,p)
-            if(topnew>sealevel)then
-              topnew = sealevel + 0.001*(edge_dist(neighbours(i,p)+1,p)+ &
-                       (elev(i)-sealevel)/marineslope)
-            endif
+           topnew = elev(neighbours(i,p)+1) + marineslope*edge_dist(neighbours(i,p)+1,p)
+           if(topnew>sealevel)then
+             topnew = sealevel + 0.0001*(edge_dist(neighbours(i,p)+1,p)+ &
+                      (elev(i)-sealevel)/marineslope)
+           endif
           else
-            topnew = elev(neighbours(i,p)+1) + 0.001*edge_dist(neighbours(i,p)+1,p)
+           topnew = elev(neighbours(i,p)+1) + 0.0001*edge_dist(neighbours(i,p)+1,p)
           endif
           topmax = min(topmax,topnew)
         enddo loop
-
         ! Fraction of buffer that will be deposited at current node
         if(topmax>elev(i))then
           topnew = elev(i)+difo(i)/area(i)
@@ -204,6 +203,8 @@ contains
           endif
         endif
         depo(i) = depo(i)+difo(i)*cdif(i)/area(i)
+      else
+        difo(i)=0.
       endif
     enddo
 

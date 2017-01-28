@@ -150,8 +150,9 @@ def sediment_flux(input, recGrid, hillslope, FVmesh, tMesh, flow, force, lGIDs, 
             flow.CFL = input.maxDT
         else:
             flow.dt_stability(elevation, inGIDs)
-
     CFLtime = min(flow.CFL, hillslope.CFL)
+    CFLtime = float(round(CFLtime-0.5,0))
+    print 'CFL for hillslope and flow ',hillslope.CFL,flow.CFL,CFLtime
     CFLtime = min(CFLtime, tEnd - tNow)
     CFLtime = max(input.minDT, CFLtime)
     CFLtime = min(input.maxiDT, CFLtime)
