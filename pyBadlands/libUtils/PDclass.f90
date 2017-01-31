@@ -65,9 +65,10 @@ contains
 
     end subroutine defineparameters
 
-    subroutine find_maximum_elevation(difo, elev, sealevel, cdif, depo)
+    subroutine find_maximum_elevation(difo, elev, sealevel, border, cdif, depo)
 
       integer :: i, p
+      integer,dimension(dnodes),intent(in) :: border
 
       real(kind=8) :: topnew, topmax, sealevel
       real(kind=8),dimension(dnodes),intent(inout) :: cdif, depo
@@ -76,7 +77,7 @@ contains
 
       toph = elev
       do i = 1, dnodes
-        if(difo(i)>0..and.area(i)>0.)then
+        if(difo(i)>0..and.area(i)>0..and.border(i)==1)then
           topmax = 1.0e6
           ! Get the maximum topographic elevation for each node
           loop: do p = 1, 20

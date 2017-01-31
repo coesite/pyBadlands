@@ -496,8 +496,8 @@ class flowNetwork:
                 print "   - Compute erosion ", time.clock() - time1
                 time1 = time.clock()
 
-            xyID = numpy.where(numpy.logical_and(numpy.abs(self.xycoords[:,0]-47381.)<100.,numpy.abs(self.xycoords[:,1]+15093.)<100.))[0]
-            print xyID
+            #xyID = numpy.where(numpy.logical_and(numpy.abs(self.xycoords[:,0]-47381.)<100.,numpy.abs(self.xycoords[:,1]+15093.)<100.))[0]
+            #print xyID
 
             # Compute deposition
             if self.depo == 0:
@@ -505,8 +505,10 @@ class flowNetwork:
                 deposition = numpy.zeros(len(depo))
             else:
                 depo = numpy.zeros(len(cdepo))
+                brd = numpy.zeros(len(cdepo),dtype=int)
                 depo[insideIDs] = cdepo[insideIDs]
                 deposition = numpy.zeros(len(depo))
+                brd[insideIDs] = 1
 
                 tmp = numpy.where(elev>sealevel)[0]
                 landIDs = numpy.intersect1d(tmp,insideIDs)
@@ -560,7 +562,7 @@ class flowNetwork:
                     # df = pd.DataFrame({'X':self.xycoords[:,0],'Y':self.xycoords[:,1],'Z':celev[:]})
                     # df.to_csv('water.csv',columns=['X', 'Y', 'Z'], sep=',', index=False)
                     # assert(3>4)
-                    seadep = PDalgo.pdstack.marine_sed(elev, seavol, sealevel)
+                    seadep = PDalgo.pdstack.marine_sed(elev, seavol, brd, sealevel)
                     if rank==0 and verbose:
                         print "   - Compute marine deposition ", time.clock() - time1
                         time1 = time.clock()

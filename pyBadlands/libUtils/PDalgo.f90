@@ -133,9 +133,11 @@ contains
 
   end subroutine allfillPD
 
-  subroutine marine_sed(elevation, seavol, sealevel, seadep, pydnodes)
+  subroutine marine_sed(elevation, seavol, border, sealevel, seadep, pydnodes)
 
     integer :: pydnodes
+    integer,dimension(pydnodes),intent(in) :: border
+
     real(kind=8),intent(in) :: sealevel
     real(kind=8),dimension(pydnodes),intent(in) :: elevation
     real(kind=8),dimension(pydnodes),intent(in) :: seavol
@@ -174,7 +176,7 @@ contains
         ! Determine the fraction of buffer that will be deposited at current node
         cdif = 0.
         ! Get maximum elevation at current nodes to ensure sediment stability
-        call find_maximum_elevation(difo,elev,sealevel,cdif,depo)
+        call find_maximum_elevation(difo,elev,sealevel,border,cdif,depo)
 
         ! Calculate individual and cumulative accomodation space for each downstream node
         do k = 1,pydnodes

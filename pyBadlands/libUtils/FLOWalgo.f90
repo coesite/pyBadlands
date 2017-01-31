@@ -149,15 +149,8 @@ contains
             exist = .True.
             pyDrain(nID) = nID-1
           endif
-          ! if(nID==43039)then
-          !   recvr = pyRcv(donor) + 1
-          !   print*,'apartdets',nID,recvr,pyDrain(nID),fillH(nID),fillH(recvr),pitID(recvr)
-          ! endif
           do while(.not. exist)
             recvr = pyRcv(donor) + 1
-            ! if(nID==43039)then
-            !   print*,'apartdets',nID,donor,recvr,fillH(recvr),sea,pitID(recvr),pyDrain(nID),fillH(pitID(recvr))
-            ! endif
             ! If this is an internal drained basin or an edge node
             if(recvr == donor)then
               pyDrain(nID) = recvr - 1
