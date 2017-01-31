@@ -10,43 +10,15 @@
 ! This module implements Planchon & Darboux depression filling algorithm
 module pdstack
 
+  use pdclass
+
   implicit none
-
-  ! Define the data-structure to hold the data
-  integer :: s1 = 0
-  integer :: s2 = 0
-  integer, allocatable, dimension(:) :: data1
-  integer, allocatable, dimension(:) :: data2
-
-  ! Set the size of allocated memory blocks
-  integer :: block_size
-
-  ! Set neighbourhood array
-  integer,allocatable, dimension(:) :: maxngb
-  integer,allocatable, dimension(:,:) :: neighbours
-
-  ! Set edge distance array
-  real(kind=8),allocatable, dimension(:,:) :: edge_dist
-
-  ! Set area cells array
-  real(kind=8),allocatable, dimension(:) :: area
-
-  integer :: bds
-  real(kind=8) :: eps, fill_TH, marineslope, meanarea
-
-  ! Sediment distribution parameters
-  integer, parameter :: diff_nb = 2
-  integer, parameter :: max_it_cyc = 5000
-
-  real(kind=8), parameter :: diff_res = 1.e-4
-  real(kind=8), parameter :: toplimit = 1.e10
 
 contains
 
-  subroutine initialisePD(elevation, demH, sealimit, pydnodes)
+  subroutine initialisePD(elevation, demH, pydnodes)
 
     integer :: pydnodes, k
-    real(kind=8),intent(in) :: sealimit
     real(kind=8),intent(in) :: elevation(pydnodes)
     real(kind=8),intent(inout) :: demH(pydnodes)
 
@@ -55,13 +27,9 @@ contains
 
     demH(1:bds) = elevation(1:bds)
     do k = bds+1,pydnodes
-        if( elevation(k) > sealimit)then
-            demH(k) = 1.e6
-            s1 = s1 + 1
-            data1(s1) = k
-        else
-            demH(k) = elevation(k)
-        endif
+        demH(k) = 1.e6
+        s1 = s1 + 1
+        data1(s1) = k
     enddo
 
   end subroutine initialisePD
@@ -165,90 +133,6 @@ contains
 
   end subroutine allfillPD
 
-  subroutine find_maximum_elevation(difo, elev, sealevel, cdif, depo, pydnodes)
-
-    integer :: i, p, pydnodes
-
-    real(kind=8) :: topnew, topmax, sealevel
-    real(kind=8),dimension(pydnodes) :: cdif, depo
-    real(kind=8),dimension(pydnodes) :: difo, elev, toph
-
-    toph = elev
-    do i = 1, pydnodes
-      if(difo(i)>0..and.area(i)>0.)then
-        topmax = 1.0e6
-        ! Get the maximum topographic elevation for each node
-        loop: do p = 1, 20
-          if(neighbours(i,p)<0) exit loop
-          if(elev(i)<sealevel)then
-           topnew = elev(neighbours(i,p)+1) + marineslope*edge_dist(neighbours(i,p)+1,p)
-           if(topnew>sealevel)then
-             topnew = sealevel + 0.0001*(edge_dist(neighbours(i,p)+1,p)+ &
-                      (elev(i)-sealevel)/marineslope)
-           endif
-          else
-           topnew = elev(neighbours(i,p)+1) + 0.0001*edge_dist(neighbours(i,p)+1,p)
-          endif
-          topmax = min(topmax,topnew)
-        enddo loop
-        ! Fraction of buffer that will be deposited at current node
-        if(topmax>elev(i))then
-          topnew = elev(i)+difo(i)/area(i)
-          if(topnew<=topmax)then
-            cdif(i) = 1.
-            toph(i) = topnew
-          else
-            cdif(i) = (topmax-elev(i))/(topnew-elev(i))
-            toph(i) = topmax
-          endif
-        endif
-        depo(i) = depo(i)+difo(i)*cdif(i)/area(i)
-      else
-        difo(i)=0.
-      endif
-    enddo
-
-    ! Update diffusion grid top elevation
-    elev = toph
-
-    return
-
-  end subroutine find_maximum_elevation
-
-  subroutine get_available_volume_remaining(k, elev, volsum, vol, down, ndown, pydnodes)
-
-    integer :: k, p, ndown, pydnodes
-    integer,dimension(20) :: down
-
-    real(kind=8) :: dz, volsum, slp
-    real(kind=8),dimension(20) :: vol
-
-    real(kind=8),dimension(pydnodes) :: elev
-
-    volsum = 0.
-    ndown = 0
-    down = 0
-    vol = 0.
-
-    ! Loop over neighboring cell
-    loop: do p = 1, 20
-      if(neighbours(k,p)<0) exit loop
-      dz = elev(k)-elev(neighbours(k,p)+1)
-      if(dz>0.)then
-        slp = dz/edge_dist(neighbours(k,p)+1,p)
-        if(slp>=0.0001)then
-          ndown = ndown+1
-          down(p) = 1
-          vol(p) = dz*area(neighbours(k,p)+1)
-          volsum = volsum + vol(p)
-        endif
-      endif
-    enddo loop
-
-    return
-
-  end subroutine get_available_volume_remaining
-
   subroutine marine_sed(elevation, seavol, sealevel, seadep, pydnodes)
 
     integer :: pydnodes
@@ -290,13 +174,13 @@ contains
         ! Determine the fraction of buffer that will be deposited at current node
         cdif = 0.
         ! Get maximum elevation at current nodes to ensure sediment stability
-        call find_maximum_elevation(difo,elev,sealevel,cdif,depo,pydnodes)
+        call find_maximum_elevation(difo,elev,sealevel,cdif,depo)
 
         ! Calculate individual and cumulative accomodation space for each downstream node
         do k = 1,pydnodes
           if(difo(k)>0.)then
             if(cdif(k)<1.)then
-              call get_available_volume_remaining(k,elev,volsum,vol,down,ndown,pydnodes)
+              call get_available_volume_remaining(k,elev,volsum,vol,down,ndown)
               ! Remaining volume of sediment to distribute
               cc = difo(k)*(1.-cdif(k))
               difsed = difsed + cc
@@ -331,8 +215,8 @@ contains
                   fc = cc/maxngb(k)
                   ! Loop over neighboring cell
                   loop3: do p = 1, 20
-                    if(neighbours(k,p)<0) exit loop3
-                    difp(neighbours(k,p)+1) = difp(neighbours(k,p)+1)+fc
+                     if(neighbours(k,p)<0) exit loop3
+                     difp(neighbours(k,p)+1) = difp(neighbours(k,p)+1)+fc
                   enddo loop3
                 endif
               endif
@@ -346,7 +230,6 @@ contains
         difmax = max(difsed,difmax)
 
       enddo sediment_diffusion
-
     enddo
 
     seadep = depo
@@ -368,29 +251,7 @@ contains
 
     integer :: k, p
 
-    if(allocated(neighbours)) deallocate(neighbours)
-    if(allocated(edge_dist)) deallocate(edge_dist)
-    if(allocated(area)) deallocate(area)
-    if(allocated(maxngb)) deallocate(maxngb)
-    allocate(neighbours(pydnodes,20))
-    allocate(edge_dist(pydnodes,20))
-    allocate(area(pydnodes))
-    allocate(maxngb(pydnodes))
-
-    neighbours = pyNgbs
-    edge_dist = pyDist
-    area = pyArea
-    meanarea = 0.
-
-    do k = 1,pydnodes
-      maxngb(k) = 0
-      meanarea = meanarea+area(k)
-      loop: do p = 1, 20
-        if(neighbours(k,p)<0) exit loop
-        maxngb(k) = maxngb(k) + 1
-      enddo loop
-    enddo
-    meanarea = meanarea/pydnodes
+    dnodes = pydnodes
 
     marineslope = pySlp
     bds = pybounds
@@ -398,27 +259,38 @@ contains
     eps = epsilon
     fill_TH = fillTH
 
-    if(allocated(data1)) deallocate(data1)
-    if(allocated(data2)) deallocate(data2)
-    allocate(data1(block_size))
-    allocate(data2(block_size))
+    call defineparameters
+
+    neighbours = pyNgbs
+    edge_dist = pyDist
+    area = pyArea
+    meanarea = 0.
+
+    do k = 1,dnodes
+      maxngb(k) = 0
+      meanarea = meanarea+area(k)
+      loop: do p = 1, 20
+        if(neighbours(k,p)<0) exit loop
+        maxngb(k) = maxngb(k) + 1
+      enddo loop
+    enddo
+    meanarea = meanarea/dnodes
 
     return
 
   end subroutine pitparams
 
-  subroutine pitfilling(elevation,sealimit,allfill,sealevel,demH,pydnodes)
+  subroutine pitfilling(elevation,allfill,sealevel,demH,pydnodes)
 
     integer :: pydnodes
     integer,intent(in) :: allfill
-    real(kind=8),intent(in) :: sealimit
     real(kind=8),intent(in) :: sealevel
     real(kind=8),intent(in) :: elevation(pydnodes)
 
     real(kind=8),intent(out) :: demH(pydnodes)
 
     ! Initialisation phase
-    call initialisePD(elevation,demH,sealimit,pydnodes)
+    call initialisePD(elevation,demH,pydnodes)
 
     ! Filling phase
     if(allfill == 0)then

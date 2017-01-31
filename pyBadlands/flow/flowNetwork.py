@@ -24,7 +24,6 @@ import h5py
 import pandas as pd
 import xml.etree.ElementTree as ETO
 
-from pyBadlands.libUtils import SFDalgo as SFD
 import pyBadlands.libUtils.sfd as sfd
 from pyBadlands.libUtils import PDalgo
 from pyBadlands.libUtils import FLOWalgo
@@ -63,13 +62,7 @@ class flowNetwork:
         self.m = None
         self.n = None
         self.mindt = None
-        self.alluvial = 0.
-        self.bedrock = 0.
-        self.esmooth = 0.
-        self.dsmooth = 0.
         self.spl = False
-        self.capacity = False
-        self.filter = False
         self.depo = 0
 
         self.discharge = None
@@ -122,7 +115,7 @@ class flowNetwork:
         self._comm.Allreduce(mpi.IN_PLACE,diff_flux,op=mpi.MAX)
         self.diff_flux = diff_flux
 
-    def SFD_receivers(self, fillH, elev, neighbours, edges, distances, globalIDs, sea):
+    def SFD_receivers(self, fillH, elev, neighbours, edges, distances, globalIDs):
         """
         Single Flow Direction function computes downslope flow directions by inspecting the neighborhood
         elevations around each node. The SFD method assigns a unique flow direction towards the steepest
@@ -147,142 +140,41 @@ class flowNetwork:
 
         variable: globalIDs
             Numpy integer-type array containing for local nodes their global IDs.
-
-        variable : sea
-            Current elevation of sea level.
         """
 
         # Call the SFD function from libUtils
-        if self.depo == 0 or self.capacity or self.filter:
-            base, receivers = sfd.directions_base(elev, neighbours, edges, distances, globalIDs, sea)
+        # Get the directions from true surface
+        base1, receivers1 = sfd.directions_base(elev, neighbours, edges, distances, globalIDs)
 
-            # Send local base level globally
-            self._comm.Allreduce(mpi.IN_PLACE,base,op=mpi.MAX)
-            bpos = numpy.where(base >= 0)[0]
-            self.base = base[bpos]
-            numpy.random.shuffle(self.base)
+        # Send local base level globally
+        self._comm.Allreduce(mpi.IN_PLACE,base1,op=mpi.MAX)
+        bpos = numpy.where(base1 >= 0)[0]
+        self.base1 = base1[bpos]
 
-            # Send local receivers globally
-            self._comm.Allreduce(mpi.IN_PLACE,receivers,op=mpi.MAX)
-            self.receivers = receivers
-        else:
-            # Get the directions from true surface
-            base1, receivers1 = sfd.directions_base(elev, neighbours, edges, distances, globalIDs, sea)
+        # Send local receivers globally
+        self._comm.Allreduce(mpi.IN_PLACE,receivers1,op=mpi.MAX)
+        self.receivers1 = receivers1
 
-            # Send local base level globally
-            self._comm.Allreduce(mpi.IN_PLACE,base1,op=mpi.MAX)
-            bpos = numpy.where(base1 >= 0)[0]
-            self.base1 = base1[bpos]
+        # Get the directions from filled surface
+        base, receivers, maxh, maxdep = sfd.directions(fillH, elev, neighbours, edges, distances, globalIDs)
 
-            # Send local receivers globally
-            self._comm.Allreduce(mpi.IN_PLACE,receivers1,op=mpi.MAX)
-            self.receivers1 = receivers1
+        # Send local base level globally
+        self._comm.Allreduce(mpi.IN_PLACE,base,op=mpi.MAX)
+        bpos = numpy.where(base >= 0)[0]
+        self.base = base[bpos]
+        numpy.random.shuffle(self.base)
 
-            # Get the directions from filled surface
-            base, receivers, maxh, maxdep = sfd.directions(fillH, elev, neighbours, edges, distances, globalIDs, sea)
+        # Send local receivers globally
+        self._comm.Allreduce(mpi.IN_PLACE,receivers,op=mpi.MAX)
+        self.receivers = receivers
 
-            # Send local base level globally
-            self._comm.Allreduce(mpi.IN_PLACE,base,op=mpi.MAX)
-            bpos = numpy.where(base >= 0)[0]
-            self.base = base[bpos]
-            numpy.random.shuffle(self.base)
+        # Send local maximum height globally
+        self._comm.Allreduce(mpi.IN_PLACE,maxh,op=mpi.MAX)
+        self.maxh = maxh
 
-            # Send local receivers globally
-            self._comm.Allreduce(mpi.IN_PLACE,receivers,op=mpi.MAX)
-            self.receivers = receivers
-
-            # Send local maximum height globally
-            self._comm.Allreduce(mpi.IN_PLACE,maxh,op=mpi.MAX)
-            self.maxh = maxh
-
-            # Send local maximum deposition globally
-            self._comm.Allreduce(mpi.IN_PLACE,maxdep,op=mpi.MAX)
-            self.maxdep = maxdep
-
-    def SFD_nreceivers(self, Sc, fillH, elev, neighbours, edges, distances, globalIDs, sea):
-        """
-        Single Flow Direction function computes downslope flow directions by inspecting the neighborhood
-        elevations around each node. The SFD method assigns a unique flow direction towards the steepest
-        downslope neighbor. In addition it compute the hillslope non-linear diffusion
-
-        Parameters
-        ----------
-        variable : Sc
-            Critical slope for non-linear diffusion.
-
-        variable : fillH
-            Numpy array containing the filled elevations from Planchon & Darboux depression-less algorithm.
-
-        variable : elev
-            Numpy arrays containing the elevation of the TIN nodes.
-
-        variable : neighbours
-            Numpy integer-type array with the neighbourhood IDs.
-
-        variable : edges
-            Numpy real-type array with the voronoi edges length for each neighbours of the TIN nodes.
-
-        variable : distances
-            Numpy real-type array with the distances between each connection in the TIN.
-
-        variable: globalIDs
-            Numpy integer-type array containing for local nodes their global IDs.
-
-        variable : sea
-            Current elevation of sea level.
-        """
-
-        # Call the SFD function from libUtils
-        if self.depo == 0 or self.capacity or self.filter:
-            base, receivers, diff_flux, diff_cfl = SFD.sfdcompute.directions_base_nl(elev, \
-                neighbours, edges, distances, globalIDs, sea, Sc)
-
-            # Send local base level globally
-            self._comm.Allreduce(mpi.IN_PLACE,base,op=mpi.MAX)
-
-            bpos = numpy.where(base >= 0)[0]
-            self.base = base[bpos]
-            numpy.random.shuffle(self.base)
-            # Send local receivers globally
-            self._comm.Allreduce(mpi.IN_PLACE,receivers,op=mpi.MAX)
-            self.receivers = receivers
-
-            # Send local diffusion flux globally
-            self._comm.Allreduce(mpi.IN_PLACE,diff_flux,op=mpi.MAX)
-            self.diff_flux = diff_flux
-
-            # Send local diffusion CFL condition globally
-            self._comm.Allreduce(mpi.IN_PLACE,diff_cfl,op=mpi.MIN)
-            self.diff_cfl = diff_cfl
-        else:
-            base, receivers, maxh, maxdep, diff_flux, diff_cfl = SFD.sfdcompute.directions_nl(fillH, \
-                elev, neighbours, edges, distances, globalIDs, sea, Sc)
-
-            # Send local base level globally
-            self._comm.Allreduce(mpi.IN_PLACE,base,op=mpi.MAX)
-            bpos = numpy.where(base >= 0)[0]
-            self.base = base[bpos]
-            numpy.random.shuffle(self.base)
-
-            # Send local receivers globally
-            self._comm.Allreduce(mpi.IN_PLACE,receivers,op=mpi.MAX)
-            self.receivers = receivers
-
-            # Send local maximum height globally
-            self._comm.Allreduce(mpi.IN_PLACE,maxh,op=mpi.MAX)
-            self.maxh = maxh
-
-            # Send local maximum deposition globally
-            self._comm.Allreduce(mpi.IN_PLACE,maxdep,op=mpi.MAX)
-            self.maxdep = maxdep
-
-            # Send local diffusion flux globally
-            self._comm.Allreduce(mpi.IN_PLACE,diff_flux,op=mpi.MAX)
-            self.diff_flux = diff_flux
-
-            # Send local diffusion CFL condition globally
-            self._comm.Allreduce(mpi.IN_PLACE,diff_cfl,op=mpi.MIN)
-            self.diff_cfl = diff_cfl
+        # Send local maximum deposition globally
+        self._comm.Allreduce(mpi.IN_PLACE,maxdep,op=mpi.MAX)
+        self.maxdep = maxdep
 
     def _donors_number_array(self):
         """
@@ -474,14 +366,15 @@ class flowNetwork:
         self.allDrain = FLOWalgo.flowcompute.basindrainageall(orderPits,self.pitID,self.receivers,pIDs)
 
         # Debugging plotting function
+        #debug = True
         if debug:
-            self.visualise_draining_path(pIDs, elev, self.pitDrain, 'drain')
-            self.visualise_draining_path(pIDs, elev, self.allDrain, 'alldrain')
+            self.visualise_draining_path(pIDs, elev, self.pitDrain, fillH, 'drain')
+            self.visualise_draining_path(pIDs, elev, self.allDrain, fillH, 'alldrain')
 
         return
 
     def compute_sedflux(self, Acell, elev, fillH, xymin, xymax, dt, rivqs, sealevel,
-        cumdiff, perc_dep, slp_cr):
+        cumdiff, perc_dep, slp_cr, verbose=False):
         """
         Calculates the sediment flux at each node.
 
@@ -525,43 +418,37 @@ class flowNetwork:
         comm = mpi.COMM_WORLD
         rank = comm.Get_rank()
         size = comm.Get_size()
+        newdt = numpy.copy(dt)
+        sedflux = numpy.zeros(len(elev))
+        verbose = False
 
         # Compute sediment flux using libUtils
-
-        # Purely erosive case
-        if self.spl and self.depo == 0:
-            sedflux, newdt = FLOWalgo.flowcompute.sedflux_ero_only(self.localstack,self.receivers, \
-                     self.xycoords,xymin,xymax,self.discharge,elev, \
-                     self.erodibility,self.m,self.n,sealevel,dt)
-
-        # Stream power law and mass is not conserved
-        elif self.spl and self.filter:
-            sedflux, newdt = FLOWalgo.flowcompute.sedflux_nocapacity_quick(self.localstack,self.receivers, \
-                     self.xycoords,Acell,xymin,xymax,self.discharge,elev,rivqs,self.erodibility, \
-                     self.m,self.n,sealevel,dt)
-
         # Stream power law
-        elif self.spl:
-            # time0 = time.clock()
-            # time1 = time.clock()
-            dt = 5000.
-            depo, ero = FLOWalgo.flowcompute.qs_max(self.localstack,self.receivers,self.pitID,self.pitVolume, \
+        if self.spl:
+            if rank==0 and verbose:
+                time0 = time.clock()
+                time1 = time.clock()
+            cdepo, cero = FLOWalgo.flowcompute.streampower(self.localstack,self.receivers,self.pitID,self.pitVolume, \
                      self.pitDrain,self.xycoords,Acell,self.maxh,self.maxdep,self.discharge,fillH,elev,rivqs, \
-                     self.erodibility,self.m,self.n,perc_dep,slp_cr,sealevel,dt)
-            comm.Allreduce(mpi.IN_PLACE,depo,op=mpi.MAX)
-            comm.Allreduce(mpi.IN_PLACE,ero,op=mpi.MIN)
-            volChange = depo+ero
-            # print "   - Compute sediment volumetric flux ", time.clock() - time1
-            # time1 = time.clock()
+                     self.erodibility,self.m,self.n,perc_dep,slp_cr,sealevel,newdt)
+            comm.Allreduce(mpi.IN_PLACE,cdepo,op=mpi.MAX)
+            comm.Allreduce(mpi.IN_PLACE,cero,op=mpi.MIN)
+
+            if self.depo == 0:
+                volChange = cero
+            else:
+                volChange = cdepo+cero
+            if rank==0 and verbose:
+                print "   - Compute sediment volumetric flux ", time.clock() - time1
+                time1 = time.clock()
 
             # Find overfilling catchments
             ids = numpy.where(numpy.logical_and(volChange>self.pitVolume,self.pitVolume>0.))[0]
 
             # Check if there are some internally drained depressions within the computational domain?
-            dtnew = dt
             intID = numpy.where(numpy.logical_and(self.allDrain == self.pitID,self.pitID>=0))[0]
             domain = path.Path([(xymin[0],xymin[1]),(xymax[0],xymin[1]), (xymax[0],xymax[1]), (xymin[0],xymax[1])])
-            if (len(intID)>0) and (len(ids)>0):
+            if len(intID)>0 and len(ids)>0:
                 search = domain.contains_points(self.xycoords[intID])
                 # For all these closed basins find the ones overfilled
                 if len(search) > 0:
@@ -570,21 +457,24 @@ class flowNetwork:
                     if len(overfilled) > 0:
                         # Compute the percentage of overfilling
                         percOver = self.pitVolume[overfilled]/volChange[overfilled]
-                        dtnew = dt*percOver.min()
-            dtnew = float(round(dtnew-0.5,0))
-            dtnew = max(self.mindt,dtnew)
-            # print "   - Compute depressions connectivity ", time.clock() - time1
-            # time1 = time.clock()
-            # print 'limited dt',dtnew
-            if dtnew < dt:
-                depo, ero = FLOWalgo.flowcompute.qs_max(self.localstack,self.receivers,self.pitID,self.pitVolume, \
+                        newdt = dt*percOver.min()
+
+            newdt = float(round(newdt-0.5,0))
+            newdt = max(self.mindt,newdt)
+
+            if rank==0 and verbose:
+                print "   - Compute depressions connectivity ", time.clock() - time1
+                time1 = time.clock()
+            if newdt < dt:
+                cdepo, cero = FLOWalgo.flowcompute.streampower(self.localstack,self.receivers,self.pitID,self.pitVolume, \
                     self.pitDrain,self.xycoords,Acell,self.maxh,self.maxdep,self.discharge,fillH,elev,rivqs, \
-                    self.erodibility,self.m,self.n,perc_dep,slp_cr,sealevel,dtnew)
-                comm.Allreduce(mpi.IN_PLACE,depo,op=mpi.MAX)
-                comm.Allreduce(mpi.IN_PLACE,ero,op=mpi.MIN)
-                volChange = depo+ero
-                # print "   - Compute volumetric fluxes with updated dt ", time.clock() - time1
-                # time1 = time.clock()
+                    self.erodibility,self.m,self.n,perc_dep,slp_cr,sealevel,newdt)
+                comm.Allreduce(mpi.IN_PLACE,cdepo,op=mpi.MAX)
+                comm.Allreduce(mpi.IN_PLACE,cero,op=mpi.MIN)
+                volChange = cdepo+cero
+                if rank==0 and verbose:
+                    print "   - Compute volumetric fluxes with updated dt ", time.clock() - time1
+                    time1 = time.clock()
 
                 # Ensure no overfilling remains
                 ids = numpy.where(numpy.logical_and(volChange>self.pitVolume,self.pitVolume>0.))[0]
@@ -598,98 +488,105 @@ class flowNetwork:
             insideIDs = numpy.intersect1d(tmp1,ids[tmp2])
 
             # Compute erosion
+            ero = numpy.zeros(len(cero))
+            ero[insideIDs] = cero[insideIDs]
             erosion = numpy.zeros(len(ero))
             erosion[insideIDs] = ero[insideIDs]/Acell[insideIDs]
-            # print "   - Compute erosion ", time.clock() - time1
-            # time1 = time.clock()
+            if rank==0 and verbose:
+                print "   - Compute erosion ", time.clock() - time1
+                time1 = time.clock()
+
+            xyID = numpy.where(numpy.logical_and(numpy.abs(self.xycoords[:,0]-47381.)<100.,numpy.abs(self.xycoords[:,1]+15093.)<100.))[0]
+            print xyID
 
             # Compute deposition
-            deposition = numpy.zeros(len(depo))
-            tmp = numpy.where(elev>sealevel)[0]
-            landIDs = numpy.intersect1d(tmp,insideIDs)
+            if self.depo == 0:
+                # Purely erosive case
+                deposition = numpy.zeros(len(depo))
+            else:
+                depo = numpy.zeros(len(cdepo))
+                depo[insideIDs] = cdepo[insideIDs]
+                deposition = numpy.zeros(len(depo))
 
-            # Compute alluvial plain deposition
-            depID = numpy.where(numpy.logical_and(fillH==elev,depo>0.))[0]
-            plainID = numpy.intersect1d(depID,landIDs)
-            if len(plainID) > 0:
-                deposition[plainID] = depo[plainID]/Acell[plainID]
-                depo[plainID] = 0.
-                # print "   - Compute plain deposition ", time.clock() - time1
-                # time1 = time.clock()
+                tmp = numpy.where(elev>sealevel)[0]
+                landIDs = numpy.intersect1d(tmp,insideIDs)
 
-            # Compute land pit deposition
-            pitIDs = numpy.where(numpy.logical_and(self.pitVolume>0.,fillH>sealevel))[0]
-            depID = numpy.where(depo>0.)[0]
-            landIDs = numpy.intersect1d(depID,pitIDs)
-            if len(landIDs) > 0:
-                perc = numpy.zeros(len(depo))
-                # Get the percentage to deposit
-                perc[landIDs] = depo[landIDs]/self.pitVolume[landIDs]
-                for p in range(len(landIDs)):
-                    tmp = numpy.where(self.pitID==landIDs[p])[0]
-                    perc[tmp] = perc[landIDs[p]]
-                tmp = numpy.where(perc>0.)
-                deposition[tmp] = (fillH[tmp]-elev[tmp])*perc[tmp]
-                depo[landIDs] = 0.
-                # print "   - Compute land pit deposition ", time.clock() - time1
-                # time1 = time.clock()
+                # Compute alluvial plain deposition
+                depID = numpy.where(numpy.logical_and(fillH==elev,depo>0.))[0]
+                plainID = numpy.intersect1d(depID,landIDs)
+                if len(plainID) > 0:
+                    deposition[plainID] = depo[plainID]/Acell[plainID]
+                    depo[plainID] = 0.
+                    if rank==0 and verbose:
+                        print "   - Compute plain deposition ", time.clock() - time1
+                        time1 = time.clock()
 
-            # Compute water deposition
-            tmp = numpy.where(numpy.logical_and(depo>0.,elev<=sealevel))[0]
-            seaIDs = numpy.intersect1d(tmp,insideIDs)
-            if len(seaIDs) > 0:
-                seavol = numpy.zeros(len(depo))
-                seavol[seaIDs] = depo[seaIDs]
-                # Distribute marine sediments based on angle of repose
-                seadep = PDalgo.pdstack.marine_sed(elev, seavol, sealevel)
-                # print "   - Compute marine deposition ", time.clock() - time1
-                # time1 = time.clock()
-                dsmooth = 2.
-                smthdep = self.gaussian_diffusion(seadep,dsmooth)
-                frac = numpy.sum(seadep*Acell)/numpy.sum(smthdep*Acell)
-                deposition = deposition+smthdep*frac
-                depo[seaIDs] = 0.
-                # print "   - Smooth marine deposition ", time.clock() - time1
-                # time1 = time.clock()
+                # Compute land pit deposition
+                pitIDs = numpy.where(numpy.logical_and(elev>sealevel,fillH>sealevel))[0]
+                volIDs = numpy.where(self.pitVolume>0.)[0]
+                tmpIDs = numpy.intersect1d(volIDs,pitIDs)
+                depID = numpy.where(depo>0.)[0]
+                landIDs = numpy.intersect1d(depID,tmpIDs)
+                if len(landIDs) > 0:
+                    perc = numpy.zeros(len(depo))
+                    # Get the percentage to deposit
+                    perc[landIDs] = depo[landIDs]/self.pitVolume[landIDs]
+                    tmp = numpy.where(perc>1)[0]
+                    overfilled = numpy.intersect1d(tmp,insideIDs)
+                    assert len(overfilled) == 0, 'WARNING: overfilling persists during land pit deposition.'
 
-            # Is there some remaining deposits?
-            tmp = numpy.where(depo>0)[0]
-            remainIDs = numpy.intersect1d(tmp,insideIDs)
-            if len(remainIDs)>0:
-                if rank == 0:
-                    print 'WARNING: forced deposition is performed during this timestep.',len(remainIDs)
-                deposition[remainIDs] = depo[remainIDs]/Acell[remainIDs]
+                    for p in range(len(landIDs)):
+                        tmp = numpy.where(self.pitID==landIDs[p])[0]
+                        perc[tmp] = perc[landIDs[p]]
+                    perc[perc>1.] = 1.
+                    tmp = numpy.where(perc>0.)
+                    deposition[tmp] = (fillH[tmp]-elev[tmp])*perc[tmp]
+                    depo[landIDs] = 0.
+                    if rank==0 and verbose:
+                        print "   - Compute land pit deposition ", time.clock() - time1
+                        time1 = time.clock()
 
-            df = pd.DataFrame({'X':self.xycoords[:,0],'Y':self.xycoords[:,1],'V':self.pitVolume[:],
-                                'Z':elev[:]+deposition[:]+erosion[:],'DZ':erosion[:]+deposition[:]})
-            df.to_csv('volume.csv',columns=['X', 'Y', 'V', 'Z', 'DZ'], sep=',', index=False)
+                # Compute water deposition
+                tmp = numpy.where(numpy.logical_and(depo>0.,elev<=sealevel))[0]
+                seaIDs = numpy.intersect1d(tmp,insideIDs)
+                if len(seaIDs) > 0:
+                    seavol = numpy.zeros(len(depo))
+                    seavol[seaIDs] = depo[seaIDs]
+                    # Distribute marine sediments based on angle of repose
+                    #celev = numpy.zeros(len(elev))
+                    #celev.fill(-1.e4)
+                    #celev[insideIDs] = elev[insideIDs]
 
-            # print "   - Total sediment flux time ", time.clock() - time0
-            dt = 1.
-            sedflux, newdt = FLOWalgo.flowcompute.sedflux_nocapacity(self.localstack,self.receivers,self.xycoords, \
-                     Acell,xymin,xymax,self.maxh,self.maxdep,self.discharge,fillH,elev,rivqs, \
-                     self.erodibility,self.m,self.n,perc_dep,slp_cr,sealevel,dt)
+                    # df = pd.DataFrame({'X':self.xycoords[:,0],'Y':self.xycoords[:,1],'Z':celev[:]})
+                    # df.to_csv('water.csv',columns=['X', 'Y', 'Z'], sep=',', index=False)
+                    # assert(3>4)
+                    seadep = PDalgo.pdstack.marine_sed(elev, seavol, sealevel)
+                    if rank==0 and verbose:
+                        print "   - Compute marine deposition ", time.clock() - time1
+                        time1 = time.clock()
+                    dsmooth = 2.
+                    smthdep = self.gaussian_diffusion(seadep,dsmooth)
+                    frac = numpy.sum(seadep*Acell)/numpy.sum(smthdep*Acell)
+                    deposition = deposition+smthdep*frac
+                    depo[seaIDs] = 0.
+                    if rank==0 and verbose:
+                        print "   - Smooth marine deposition ", time.clock() - time1
+                        time1 = time.clock()
 
-        # River carrying capacity case
-        else:
-            sedflux, newdt = FLOWalgo.flowcompute.sedflux_capacity(self.localstack,self.receivers,self.xycoords,\
-                     Acell,xymin,xymax,self.discharge,elev,rivqs,cumdiff,self.erodibility, \
-                     self.m,self.n,self.bedrock,self.alluvial,sealevel,dt)
+                # Is there some remaining deposits?
+                tmp = numpy.where(depo>0)[0]
+                remainIDs = numpy.intersect1d(tmp,insideIDs)
+                if len(remainIDs)>0:
+                    if rank == 0:
+                        print 'WARNING: forced deposition is performed during this timestep.',len(remainIDs)
+                    deposition[remainIDs] = depo[remainIDs]/Acell[remainIDs]
 
-        # Parallel case
-        if(size > 1):
-            timestep = numpy.zeros(1)
-            timestep[0] = newdt
-            comm.Allreduce(mpi.IN_PLACE,timestep,op=mpi.MIN)
-            newdt = timestep[0]
-            comm.Allreduce(mpi.IN_PLACE,sedflux,op=mpi.MAX)
+            # Define erosion/deposition changes
+            sedflux[insideIDs] = erosion[insideIDs]+deposition[insideIDs]
+            if rank==0 and verbose:
+                print "   - Total sediment flux time ", time.clock() - time0
 
-        tempIDs = numpy.where(sedflux < -9.5e5)
-        sedflux[tempIDs] = 0.
-        newdt = max(self.mindt,newdt)
-        sedrate = sedflux
-
-        return newdt,sedrate
+        return newdt,sedflux
 
     def gaussian_diffusion(self, diff, dsmooth):
         """
@@ -705,8 +602,6 @@ class flowNetwork:
             Smoothing parameter.
         """
 
-        K = 3
-
         if self.xgrid is None:
             dx = self.xycoords[1,0] - self.xycoords[0,0]
             xmin, xmax = min(self.xycoords[:,0]), max(self.xycoords[:,0])
@@ -715,21 +610,20 @@ class flowNetwork:
             self.ygrid = numpy.arange(ymin,ymax+dx,dx)
             self.xi, self.yi = numpy.meshgrid(self.xgrid, self.ygrid)
 
-            # querying the cKDTree later becomes a bottleneck, so distribute the xyi array across all MPI nodes
+            # Querying the cKDTree later becomes a bottleneck, so distribute the xyi array across all MPI nodes
             xyi = numpy.dstack([self.xi.flatten(), self.yi.flatten()])[0]
             splits = numpy.array_split(xyi, self._size)
-            self.split_lengths = numpy.array(map(len, splits)) * K
+            self.split_lengths = numpy.array(map(len, splits)) * 3
             self.localxyi = splits[self._rank]
-            self.query_shape = (xyi.shape[0], K)
+            self.query_shape = (xyi.shape[0], 3)
 
         depZ = numpy.copy(diff)
         tree = cKDTree(self.xycoords[:,:2])
 
         # Querying the KDTree is rather slow, so we split it across MPI nodes
-        # FIXME: the Allgatherv fails if we don't flatten the array first - why?
         nelems = self.query_shape[0] * self.query_shape[1]
         indices = numpy.empty(self.query_shape, dtype=numpy.int64)
-        localdistances, localindices = tree.query(self.localxyi, k=K)
+        localdistances, localindices = tree.query(self.localxyi, k=3)
 
         distances_flat = numpy.empty(nelems, dtype=numpy.float64)
         self._comm.Allgatherv(numpy.ravel(localdistances), [distances_flat, (self.split_lengths, None)])
@@ -758,84 +652,6 @@ class flowNetwork:
         zdepsmth = rgi_dep((self.xycoords[:,1],self.xycoords[:,0]))
 
         return zdepsmth
-
-    def gaussian_filter(self, diff):
-        """
-        Gaussian filter operation used to smooth erosion and deposition
-        thicknesses for large simulation time steps. Using this operation
-        implies that the resulting simulation is not conserving mass.
-
-        Parameters
-        ----------
-        variable : diff
-            Numpy arrays containing the erosion and deposition thicknesses.
-        """
-
-        K = 3
-
-        if self.xgrid is None:
-            dx = self.xycoords[1,0] - self.xycoords[0,0]
-            xmin, xmax = min(self.xycoords[:,0]), max(self.xycoords[:,0])
-            ymin, ymax = min(self.xycoords[:,1]), max(self.xycoords[:,1])
-            self.xgrid = numpy.arange(xmin,xmax+dx,dx)
-            self.ygrid = numpy.arange(ymin,ymax+dx,dx)
-            self.xi, self.yi = numpy.meshgrid(self.xgrid, self.ygrid)
-
-            # querying the cKDTree later becomes a bottleneck, so distribute the xyi array across all MPI nodes
-            xyi = numpy.dstack([self.xi.flatten(), self.yi.flatten()])[0]
-            splits = numpy.array_split(xyi, self._size)
-            self.split_lengths = numpy.array(map(len, splits)) * K
-            self.localxyi = splits[self._rank]
-            self.query_shape = (xyi.shape[0], K)
-
-        depZ = numpy.copy(diff)
-        depZ = depZ.clip(0.)
-
-        eroZ = numpy.copy(diff)
-        eroZ = eroZ.clip(max=0.)
-
-        tree = cKDTree(self.xycoords[:,:2])
-
-        # Querying the KDTree is rather slow, so we split it across MPI nodes
-        # FIXME: the Allgatherv fails if we don't flatten the array first - why?
-        nelems = self.query_shape[0] * self.query_shape[1]
-        indices = numpy.empty(self.query_shape, dtype=numpy.int64)
-        localdistances, localindices = tree.query(self.localxyi, k=K)
-
-        distances_flat = numpy.empty(nelems, dtype=numpy.float64)
-        self._comm.Allgatherv(numpy.ravel(localdistances), [distances_flat, (self.split_lengths, None)])
-
-        indices_flat = numpy.empty(nelems, dtype=numpy.int64)
-        self._comm.Allgatherv(numpy.ravel(localindices), [indices_flat, (self.split_lengths, None)])
-
-        distances = distances_flat.reshape(self.query_shape)
-        indices = indices_flat.reshape(self.query_shape)
-
-        if len(depZ[indices].shape) == 3:
-            zd_vals = depZ[indices][:,:,0]
-            ze_vals = eroZ[indices][:,:,0]
-        else:
-            zd_vals = depZ[indices]
-            ze_vals = eroZ[indices]
-        zdi = numpy.average(zd_vals,weights=(1./distances), axis=1)
-        zei = numpy.average(ze_vals,weights=(1./distances), axis=1)
-
-        onIDs = numpy.where(distances[:,0] == 0)[0]
-        if len(onIDs) > 0:
-            zdi[onIDs] = depZ[indices[onIDs,0]]
-            zei[onIDs] = eroZ[indices[onIDs,0]]
-
-        depzi = numpy.reshape(zdi,(len(self.ygrid),len(self.xgrid)))
-        erozi = numpy.reshape(zei,(len(self.ygrid),len(self.xgrid)))
-
-        smthDep = gaussian_filter(depzi, sigma=self.dsmooth)
-
-        rgi_dep = RegularGridInterpolator((self.ygrid, self.xgrid), smthDep)
-        zdepsmth = rgi_dep((self.xycoords[:,1],self.xycoords[:,0]))
-        rgi_ero = RegularGridInterpolator((self.ygrid, self.xgrid), smthEro)
-        zerosmth = rgi_ero((self.xycoords[:,1],self.xycoords[:,0]))
-
-        return zdepsmth + zerosmth
 
     def dt_stability(self, elev, locIDs):
         """
@@ -870,7 +686,7 @@ class flowNetwork:
 
         return
 
-    def visualise_draining_path(self, pIDs, elev, drain, filename):
+    def visualise_draining_path(self, pIDs, elev, drain, fillH, filename):
         """
         Debugging function used to plot draining pathway between depressions.
 
@@ -936,5 +752,9 @@ class flowNetwork:
         df = pd.DataFrame({'X':self.xycoords[pIDs,0],'Y':self.xycoords[pIDs,1],'V':self.pitVolume[pIDs],
                              'ID':self.pitID[pIDs],'Drain':self.pitDrain[pIDs]})
         df.to_csv(filename+'vol.csv',columns=['X', 'Y', 'Volume', 'pitID','pitDrain'], sep=',', index=False)
+
+        df = pd.DataFrame({'X':self.xycoords[:,0],'Y':self.xycoords[:,1],'Z':elev[:],
+                             'W':fillH[:]})
+        df.to_csv(filename+'water.csv',columns=['X', 'Y', 'Z', 'W'], sep=',', index=False)
 
         return

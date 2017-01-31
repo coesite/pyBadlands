@@ -240,7 +240,7 @@ def assign_parameter_pit(neighbours, edge_length, area, diffslp, boundPts, fillT
     PDalgo.pdstack.pitparams(neighbours, edge_length, area, diffslp, fillTH, epsilon, boundPts)
 
 
-def pit_stack_PD(elev, sea, allFill, sealevel):
+def pit_stack_PD(elev, allFill, sealevel):
     """
     This function calls a depression-less algorithm from Planchon & Darboux to compute the flow
     pathway using stack.
@@ -249,9 +249,6 @@ def pit_stack_PD(elev, sea, allFill, sealevel):
     ----------
     variable : elev
         Numpy arrays containing the nodes elevation.
-
-    variable : sea
-        Restriction on sea level depth.
 
     variable : allFill
         Produce depression-less surface.
@@ -266,6 +263,6 @@ def pit_stack_PD(elev, sea, allFill, sealevel):
     """
 
     # Call stack based pit filling function from libUtils
-    fillH = PDalgo.pdstack.pitfilling(elev, sea, allFill, sealevel)
+    fillH = PDalgo.pdstack.pitfilling(elev, allFill, sealevel)
 
     return fillH

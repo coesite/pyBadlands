@@ -2,7 +2,7 @@ import time
 import numpy as np
 import mpi4py.MPI as mpi
 
-from pyBadlands import (diffLinear, diffnLinear, flowNetwork, buildMesh,
+from pyBadlands import (diffLinear, flowNetwork, buildMesh,
                         checkPoints, buildFlux, xmlParser)
 
 # profiling support
@@ -65,15 +65,9 @@ class Model(object):
 
         # Define hillslope parameters
         self.rain = np.zeros(self.totPts, dtype=float)
-        if self.input.nHillslope:
-            self.hillslope = diffnLinear()
-            self.hillslope.CDaerial = self.input.CDa
-            self.hillslope.CDmarine = self.input.CDm
-            self.hillslope.Sc = self.input.Sc
-        else:
-            self.hillslope = diffLinear()
-            self.hillslope.CDaerial = self.input.CDa
-            self.hillslope.CDmarine = self.input.CDm
+        self.hillslope = diffLinear()
+        self.hillslope.CDaerial = self.input.CDa
+        self.hillslope.CDmarine = self.input.CDm
 
         # Define flow parameters
         self.flow = flowNetwork()
@@ -84,14 +78,8 @@ class Model(object):
         self.flow.m = self.input.SPLm
         self.flow.n = self.input.SPLn
         self.flow.mindt = self.input.minDT
-        self.flow.bedrock = self.input.bedrock
-        self.flow.alluvial = self.input.alluvial
-        self.flow.esmooth = self.input.esmooth
-        self.flow.dsmooth = self.input.dsmooth
         self.flow.xycoords = self.FVmesh.node_coords[:,:2]
         self.flow.spl = self.input.spl
-        self.flow.capacity = self.input.capacity
-        self.flow.filter = self.input.filter
         self.flow.depo = self.input.depo
 
     def rebuild_mesh(self, verbose=False):
