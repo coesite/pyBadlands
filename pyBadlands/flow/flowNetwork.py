@@ -374,7 +374,7 @@ class flowNetwork:
         return
 
     def compute_sedflux(self, Acell, elev, fillH, xymin, xymax, dt, rivqs, sealevel,
-        cumdiff, perc_dep, slp_cr, verbose=False):
+        cumdiff, perc_dep, slp_cr, sigma, verbose=False):
         """
         Calculates the sediment flux at each node.
 
@@ -412,8 +412,11 @@ class flowNetwork:
 
         variable : perc_dep
             Maximum percentage of deposition at any given time interval.
-        """
 
+        variable : sigma
+            Marine sedimentation gaussian filter parameter.
+        """
+        
         # Initialise MPI communications
         comm = mpi.COMM_WORLD
         rank = comm.Get_rank()
@@ -496,9 +499,6 @@ class flowNetwork:
                 print "   - Compute erosion ", time.clock() - time1
                 time1 = time.clock()
 
-            #xyID = numpy.where(numpy.logical_and(numpy.abs(self.xycoords[:,0]-47381.)<100.,numpy.abs(self.xycoords[:,1]+15093.)<100.))[0]
-            #print xyID
-
             # Compute deposition
             if self.depo == 0:
                 # Purely erosive case
@@ -555,19 +555,11 @@ class flowNetwork:
                     seavol = numpy.zeros(len(depo))
                     seavol[seaIDs] = depo[seaIDs]
                     # Distribute marine sediments based on angle of repose
-                    #celev = numpy.zeros(len(elev))
-                    #celev.fill(-1.e4)
-                    #celev[insideIDs] = elev[insideIDs]
-
-                    # df = pd.DataFrame({'X':self.xycoords[:,0],'Y':self.xycoords[:,1],'Z':celev[:]})
-                    # df.to_csv('water.csv',columns=['X', 'Y', 'Z'], sep=',', index=False)
-                    # assert(3>4)
                     seadep = PDalgo.pdstack.marine_sed(elev, seavol, brd, sealevel)
                     if rank==0 and verbose:
                         print "   - Compute marine deposition ", time.clock() - time1
                         time1 = time.clock()
-                    dsmooth = 2.
-                    smthdep = self.gaussian_diffusion(seadep,dsmooth)
+                    smthdep = self.gaussian_diffusion(seadep,sigma)
                     frac = numpy.sum(seadep*Acell)/numpy.sum(smthdep*Acell)
                     deposition = deposition+smthdep*frac
                     depo[seaIDs] = 0.

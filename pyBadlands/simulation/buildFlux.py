@@ -135,7 +135,7 @@ def sediment_flux(input, recGrid, hillslope, FVmesh, tMesh, flow, force, lGIDs, 
     tmp = force.rivQs[ids]
     timestep, sedrate = flow.compute_sedflux(FVmesh.control_volumes, elevation, fillH, xyMin, xyMax,
                                           CFLtime, force.rivQs, force.sealevel, cumdiff,
-                                          input.perc_dep, input.slp_cr)
+                                          input.perc_dep, input.slp_cr, input.diffsigma)
     if rank == 0 and verbose:
         print " -   Get stream fluxes ", time.clock() - walltime
 
