@@ -487,7 +487,9 @@ class flowNetwork:
                 ids = numpy.where(numpy.logical_and(volChange>self.pitVolume,self.pitVolume>0.))[0]
                 if (len(search)>0) and (len(ids)>0):
                     overfilled = numpy.intersect1d(intID[search],ids)
-                    assert len(overfilled) == 0, 'WARNING: overfilling persists after time-step limitation.'
+                    if len(overfilled) > 0:
+                        print 'WARNING: overfilling persists after time-step limitation.',len(overfilled)
+                    #assert len(overfilled) == 0, 'WARNING: overfilling persists after time-step limitation.'
 
             ids = numpy.arange(len(Acell))
             tmp1 = numpy.where(Acell>0.)[0]
@@ -539,7 +541,9 @@ class flowNetwork:
                     perc[landIDs] = depo[landIDs]/self.pitVolume[landIDs]
                     tmp = numpy.where(perc>1)[0]
                     overfilled = numpy.intersect1d(tmp,insideIDs)
-                    assert len(overfilled) == 0, 'WARNING: overfilling persists during land pit deposition.'
+                    if len(overfilled) > 0:
+                        print 'WARNING: overfilling persists during land pit deposition.',len(overfilled)
+                    #assert len(overfilled) == 0, 'WARNING: overfilling persists during land pit deposition.'
 
                     for p in range(len(landIDs)):
                         tmp = numpy.where(self.pitID==landIDs[p])[0]

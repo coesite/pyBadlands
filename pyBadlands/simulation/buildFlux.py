@@ -13,6 +13,7 @@ This file is the main entry point to compute flow network and associated sedimen
 import time
 import numpy as np
 import mpi4py.MPI as mpi
+from matplotlib import path
 
 from pyBadlands import (elevationTIN)
 
@@ -131,6 +132,9 @@ def sediment_flux(input, recGrid, hillslope, FVmesh, tMesh, flow, force, lGIDs, 
     walltime = time.clock()
     xyMin = [recGrid.regX.min(), recGrid.regY.min()]
     xyMax = [recGrid.regX.max(), recGrid.regY.max()]
+    domain = path.Path([(xyMin[0],xyMin[1]),(xyMax[0],xyMin[1]), (xyMax[0],xyMax[1]), (xyMin[0],xyMax[1])])
+    insideIDs = domain.contains_points(flow.xycoords)
+
     ids = np.where(force.rivQs>0)
     tmp = force.rivQs[ids]
     timestep, sedrate = flow.compute_sedflux(FVmesh.control_volumes, elevation, fillH, xyMin, xyMax,
@@ -147,7 +151,9 @@ def sediment_flux(input, recGrid, hillslope, FVmesh, tMesh, flow, force, lGIDs, 
     walltime = time.clock()
     flow.compute_hillslope_diffusion(elevation, FVmesh.neighbours,
                        FVmesh.vor_edges, FVmesh.edge_length,lGIDs)
-    diff_flux = hillslope.sedflux(flow.diff_flux, force.sealevel, elevation, FVmesh.control_volumes)
+    cdiff = hillslope.sedflux(flow.diff_flux, force.sealevel, elevation, FVmesh.control_volumes)
+    diff_flux = np.zeros(len(cdiff))
+    diff_flux[insideIDs] = cdiff[insideIDs]
     diff = diff_flux * timestep
     elevation += diff
     cumdiff += diff

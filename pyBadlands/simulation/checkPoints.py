@@ -69,11 +69,11 @@ def write_checkpoints(input, recGrid, lGIDs, inIDs, tNow, FVmesh, \
     # Write HDF5 files
     if input.flexure:
         visualiseTIN.write_hdf5_flexure(input.outDir, input.th5file, step, tMesh.node_coords[:,:2],
-                                    elevation[lGIDs], fillH[lGIDs], rain[lGIDs], visdis[lGIDs], cumdiff[lGIDs],
+                                    elevation[lGIDs], rain[lGIDs], visdis[lGIDs], cumdiff[lGIDs],
                                     cumflex[lGIDs], outCells, rank, input.oroRain, eroOn, flow.erodibility[lGIDs])
     else:
         visualiseTIN.write_hdf5(input.outDir, input.th5file, step, tMesh.node_coords[:,:2],
-                                elevation[lGIDs], fillH[lGIDs], rain[lGIDs], visdis[lGIDs], cumdiff[lGIDs],
+                                elevation[lGIDs], rain[lGIDs], visdis[lGIDs], cumdiff[lGIDs],
                                 outCells, rank, input.oroRain, eroOn, flow.erodibility[lGIDs])
 
     visualiseFlow.write_hdf5(input.outDir, input.fh5file, step, FVmesh.node_coords[flowIDs, :2],
