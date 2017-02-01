@@ -357,19 +357,23 @@ class flowNetwork:
         # Find the depression node IDs
         pIDs = numpy.where(self.pitVolume>0.)[0]
 
-        # Order the pits based on filled elevation from top to bottom
-        orderPits = numpy.argsort(fillH[pIDs])[::-1]
+        if(len(pIDs)>0):
+            # Order the pits based on filled elevation from top to bottom
+            orderPits = numpy.argsort(fillH[pIDs])[::-1]
 
-        # Find the depression or edge, marine point where a given pit is draining
-        self.pitDrain = FLOWalgo.flowcompute.basindrainage(orderPits,self.pitID,self.receivers,pIDs,
-                                                      fillH,sealevel)
-        self.allDrain = FLOWalgo.flowcompute.basindrainageall(orderPits,self.pitID,self.receivers,pIDs)
+            # Find the depression or edge, marine point where a given pit is draining
+            self.pitDrain = FLOWalgo.flowcompute.basindrainage(orderPits,self.pitID,self.receivers,pIDs,
+                                                          fillH,sealevel)
+            self.allDrain = FLOWalgo.flowcompute.basindrainageall(orderPits,self.pitID,self.receivers,pIDs)
 
-        # Debugging plotting function
-        #debug = True
-        if debug:
-            self.visualise_draining_path(pIDs, elev, self.pitDrain, fillH, 'drain')
-            self.visualise_draining_path(pIDs, elev, self.allDrain, fillH, 'alldrain')
+            # Debugging plotting function
+            #debug = True
+            if debug:
+                self.visualise_draining_path(pIDs, elev, self.pitDrain, fillH, 'drain')
+                self.visualise_draining_path(pIDs, elev, self.allDrain, fillH, 'alldrain')
+        else:
+            self.pitDrain = -numpy.ones(len(pitID))
+            self.allDrain = -numpy.ones(len(pitID))
 
         return
 
@@ -416,7 +420,7 @@ class flowNetwork:
         variable : sigma
             Marine sedimentation gaussian filter parameter.
         """
-        
+
         # Initialise MPI communications
         comm = mpi.COMM_WORLD
         rank = comm.Get_rank()
@@ -559,9 +563,12 @@ class flowNetwork:
                     if rank==0 and verbose:
                         print "   - Compute marine deposition ", time.clock() - time1
                         time1 = time.clock()
-                    smthdep = self.gaussian_diffusion(seadep,sigma)
-                    frac = numpy.sum(seadep*Acell)/numpy.sum(smthdep*Acell)
-                    deposition = deposition+smthdep*frac
+                    if sigma > 0.:
+                        smthdep = self.gaussian_diffusion(seadep,sigma)
+                        frac = numpy.sum(seadep*Acell)/numpy.sum(smthdep*Acell)
+                        deposition += smthdep*frac
+                    else:
+                        deposition += seadep
                     depo[seaIDs] = 0.
                     if rank==0 and verbose:
                         print "   - Smooth marine deposition ", time.clock() - time1
