@@ -63,7 +63,8 @@ def write_checkpoints(input, recGrid, lGIDs, inIDs, tNow, FVmesh, \
     flow.compute_parameters()
     visdis = np.copy(flow.discharge)
     seaIDs = np.where(elevation<force.sealevel)[0]
-    visdis[seaIDs] = 1.
+    if len(seaIDs)>0:
+        visdis[seaIDs] = 1.
     visdis[visdis<1.] = 1.
 
     # Write HDF5 files

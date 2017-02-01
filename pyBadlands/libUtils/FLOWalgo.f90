@@ -98,7 +98,7 @@ contains
       integer :: n, donor, recvr, pitID
 
       pyBasinID = -1
-      pyVolume = 0.
+      pyVolume = -1
       pitID = -1
       do n = 1, pylNodesNb
         donor = pyStack(n) + 1
@@ -284,9 +284,9 @@ contains
 
   end subroutine flowcfl
 
-  subroutine streampower(pyStack, pyRcv, pitID, pitVol, pitDrain, pyXY, pyArea, &
-      pyMaxH, pyMaxD, pyDischarge, pyFillH, pyElev, pyRiv, Cero, spl_m, &
-      spl_n, perc_dep, slp_cr, sea, dt, pyDepo, pyEro, pylNodesNb, pygNodesNb)
+  subroutine streampower(pyStack, pyRcv, pitID, pitVol, pitDrain, pyXY, pyArea, pyMaxH, &
+      pyMaxD, pyDischarge, pyFillH, pyElev, pyRiv, Cero, spl_m, spl_n, perc_dep, &
+      slp_cr, sea, dt, borders, pyDepo, pyEro, pylNodesNb, pygNodesNb)
 
       integer :: pylNodesNb
       integer :: pygNodesNb
@@ -299,6 +299,7 @@ contains
       integer,dimension(pylNodesNb),intent(in) :: pyStack
       integer,dimension(pygNodesNb),intent(in) :: pyRcv
       integer,dimension(pygNodesNb),intent(in) :: pitID
+      integer,dimension(pygNodesNb),intent(in) :: borders
       integer,dimension(pygNodesNb),intent(in) :: pitDrain
       real(kind=8),dimension(pygNodesNb,2),intent(in) :: pyXY
       real(kind=8),dimension(pygNodesNb),intent(in) :: pyArea
@@ -434,24 +435,28 @@ contains
                 sedFluxes(recvr) = sedFluxes(recvr) + tmpdist
                 tmpdist = 0.
               endif
-              ! pyDepo(tmpID) = pyDepo(tmpID) + tmpdist
-              ! tmpdist = 0.
+              nID = recvr
             ! In case the depression is not filled
             elseif(pyDepo(tmpID)+tmpdist<=pitVol(tmpID))then
               pyDepo(tmpID) = pyDepo(tmpID) + tmpdist
               tmpdist = 0.
+              nID = tmpID
             ! In case this is an internally drained depression
             elseif(pitDrain(tmpID)+1==tmpID)then
               pyDepo(tmpID) = pyDepo(tmpID) + tmpdist
               tmpdist = 0.
+              nID = tmpID
             ! Otherwise get the amount to distibute towards draining basins
             else
-              if(pyDepo(tmpID)==pitVol(tmpID))then
-                nID = tmpID
+              if(borders(tmpID) == 0)then
+                 tmpdist = 0.
+                 nID = tmpID
+              elseif(pyDepo(tmpID)==pitVol(tmpID))then
+                 nID = tmpID
               else
-                tmpdist = tmpdist - ( pitVol(tmpID) - pyDepo(tmpID) )
-                pyDepo(tmpID) = pitVol(tmpID)
-                nID = tmpID
+                 tmpdist = tmpdist - ( pitVol(tmpID) - pyDepo(tmpID) )
+                 pyDepo(tmpID) = pitVol(tmpID)
+                 nID = tmpID
               endif
             endif
             tmpID = pitDrain(nID) + 1

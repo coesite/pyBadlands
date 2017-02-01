@@ -355,9 +355,10 @@ class flowNetwork:
         self.pitVolume = pitVolume
 
         # Find the depression node IDs
-        pIDs = numpy.where(self.pitVolume>0.)[0]
+        pIDs = numpy.where(self.pitVolume>=0.)[0]
 
         if(len(pIDs)>0):
+            xyidd = numpy.where(self.pitVolume==self.pitVolume.max())[0]
             # Order the pits based on filled elevation from top to bottom
             orderPits = numpy.argsort(fillH[pIDs])[::-1]
 
@@ -435,9 +436,24 @@ class flowNetwork:
             if rank==0 and verbose:
                 time0 = time.clock()
                 time1 = time.clock()
+
+            # Find border/inside nodes
+            ids = numpy.arange(len(Acell))
+            tmp1 = numpy.where(Acell>0.)[0]
+            domain = path.Path([(xymin[0],xymin[1]),(xymax[0],xymin[1]), (xymax[0],xymax[1]), (xymin[0],xymax[1])])
+            tmp2 = domain.contains_points(self.xycoords)
+            insideIDs = numpy.intersect1d(tmp1,ids[tmp2])
+            borders = numpy.zeros(len(Acell),dtype=int)
+            borders[insideIDs] = 1
+
+            # tmpvol = numpy.zeros(len(Acell))
+            # tmpvol.fill(1.e15)
+            # tmpvol[insideIDs] = self.pitVolume[insideIDs]
+            # self.pitVolume = tmpvol
+
             cdepo, cero = FLOWalgo.flowcompute.streampower(self.localstack,self.receivers,self.pitID,self.pitVolume, \
                      self.pitDrain,self.xycoords,Acell,self.maxh,self.maxdep,self.discharge,fillH,elev,rivqs, \
-                     self.erodibility,self.m,self.n,perc_dep,slp_cr,sealevel,newdt)
+                     self.erodibility,self.m,self.n,perc_dep,slp_cr,sealevel,newdt,borders)
             comm.Allreduce(mpi.IN_PLACE,cdepo,op=mpi.MAX)
             comm.Allreduce(mpi.IN_PLACE,cero,op=mpi.MIN)
 
@@ -454,7 +470,6 @@ class flowNetwork:
 
             # Check if there are some internally drained depressions within the computational domain?
             intID = numpy.where(numpy.logical_and(self.allDrain == self.pitID,self.pitID>=0))[0]
-            domain = path.Path([(xymin[0],xymin[1]),(xymax[0],xymin[1]), (xymax[0],xymax[1]), (xymin[0],xymax[1])])
             if len(intID)>0 and len(ids)>0:
                 search = domain.contains_points(self.xycoords[intID])
                 # For all these closed basins find the ones overfilled
@@ -466,7 +481,8 @@ class flowNetwork:
                         percOver = self.pitVolume[overfilled]/volChange[overfilled]
                         newdt = dt*percOver.min()
 
-            newdt = float(round(newdt-0.5,0))
+            if newdt>1.:
+                newdt = float(round(newdt-0.5,0))
             newdt = max(self.mindt,newdt)
 
             if rank==0 and verbose:
@@ -475,7 +491,7 @@ class flowNetwork:
             if newdt < dt:
                 cdepo, cero = FLOWalgo.flowcompute.streampower(self.localstack,self.receivers,self.pitID,self.pitVolume, \
                     self.pitDrain,self.xycoords,Acell,self.maxh,self.maxdep,self.discharge,fillH,elev,rivqs, \
-                    self.erodibility,self.m,self.n,perc_dep,slp_cr,sealevel,newdt)
+                    self.erodibility,self.m,self.n,perc_dep,slp_cr,sealevel,newdt,borders)
                 comm.Allreduce(mpi.IN_PLACE,cdepo,op=mpi.MAX)
                 comm.Allreduce(mpi.IN_PLACE,cero,op=mpi.MIN)
                 volChange = cdepo+cero
@@ -491,11 +507,6 @@ class flowNetwork:
                         print 'WARNING: overfilling persists after time-step limitation.',len(overfilled)
                     #assert len(overfilled) == 0, 'WARNING: overfilling persists after time-step limitation.'
 
-            ids = numpy.arange(len(Acell))
-            tmp1 = numpy.where(Acell>0.)[0]
-            tmp2 = domain.contains_points(self.xycoords)
-            insideIDs = numpy.intersect1d(tmp1,ids[tmp2])
-
             # Compute erosion
             ero = numpy.zeros(len(cero))
             ero[insideIDs] = cero[insideIDs]
@@ -508,13 +519,11 @@ class flowNetwork:
             # Compute deposition
             if self.depo == 0:
                 # Purely erosive case
-                deposition = numpy.zeros(len(depo))
+                deposition = numpy.zeros(len(cdepo))
             else:
                 depo = numpy.zeros(len(cdepo))
-                brd = numpy.zeros(len(cdepo),dtype=int)
                 depo[insideIDs] = cdepo[insideIDs]
                 deposition = numpy.zeros(len(depo))
-                brd[insideIDs] = 1
 
                 tmp = numpy.where(elev>sealevel)[0]
                 landIDs = numpy.intersect1d(tmp,insideIDs)
@@ -563,7 +572,7 @@ class flowNetwork:
                     seavol = numpy.zeros(len(depo))
                     seavol[seaIDs] = depo[seaIDs]
                     # Distribute marine sediments based on angle of repose
-                    seadep = PDalgo.pdstack.marine_sed(elev, seavol, brd, sealevel)
+                    seadep = PDalgo.pdstack.marine_sed(elev, seavol, borders, sealevel)
                     if rank==0 and verbose:
                         print "   - Compute marine deposition ", time.clock() - time1
                         time1 = time.clock()
@@ -754,12 +763,11 @@ class flowNetwork:
         f.write('</Xdmf>\n')
         f.close()
 
-        df = pd.DataFrame({'X':self.xycoords[pIDs,0],'Y':self.xycoords[pIDs,1],'V':self.pitVolume[pIDs],
+        df = pd.DataFrame({'X':self.xycoords[pIDs,0],'Y':self.xycoords[pIDs,1],'Z':elev[pIDs],'V':self.pitVolume[pIDs],
                              'ID':self.pitID[pIDs],'Drain':self.pitDrain[pIDs]})
-        df.to_csv(filename+'vol.csv',columns=['X', 'Y', 'Volume', 'pitID','pitDrain'], sep=',', index=False)
+        df.to_csv(filename+'vol.csv',columns=['X', 'Y', 'Z', 'V', 'ID','Drain'], sep=',', index=False)
 
-        df = pd.DataFrame({'X':self.xycoords[:,0],'Y':self.xycoords[:,1],'Z':elev[:],
-                             'W':fillH[:]})
-        df.to_csv(filename+'water.csv',columns=['X', 'Y', 'Z', 'W'], sep=',', index=False)
+        # df = pd.DataFrame({'X':self.xycoords[:,0],'Y':self.xycoords[:,1],'Z':elev[:],'W':fillH[:]})
+        # df.to_csv(filename+'water.csv',columns=['X', 'Y', 'Z', 'W'], sep=',', index=False)
 
         return

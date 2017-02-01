@@ -118,7 +118,8 @@ def sediment_flux(input, recGrid, hillslope, FVmesh, tMesh, flow, force, lGIDs, 
         hillslope.CFL = tEnd-tNow
     flow.dt_stability(fillH, inGIDs)
     CFLtime = min(flow.CFL, hillslope.CFL)
-    CFLtime = float(round(CFLtime-0.5,0))
+    if CFLtime>1.:
+        CFLtime = float(round(CFLtime-0.5,0))
     if rank == 0 and verbose:
         print 'CFL for hillslope and flow ',hillslope.CFL,flow.CFL,CFLtime
     CFLtime = min(CFLtime, tEnd - tNow)
@@ -139,7 +140,7 @@ def sediment_flux(input, recGrid, hillslope, FVmesh, tMesh, flow, force, lGIDs, 
     tmp = force.rivQs[ids]
     timestep, sedrate = flow.compute_sedflux(FVmesh.control_volumes, elevation, fillH, xyMin, xyMax,
                                           CFLtime, force.rivQs, force.sealevel, cumdiff,
-                                          input.perc_dep, input.slp_cr, input.diffsigma)
+                                          input.perc_dep, input.slp_cr, input.diffsigma, verbose)
     if rank == 0 and verbose:
         print " -   Get stream fluxes ", time.clock() - walltime
 

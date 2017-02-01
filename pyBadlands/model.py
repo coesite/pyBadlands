@@ -200,6 +200,7 @@ class Model(object):
                             for rid in range(self.input.region):
                                 updateMesh, regdX[rid], regdY[rid] = self.force.load_Disp_map(self.tNow, self.FVmesh.node_coords[:, :2], self.inIDs,
                                                                     True, self.strata[rid].xyi, self.strata[rid].ids)
+
                     # Update mesh when a 3D displacements field has been loaded
                     if updateMesh:
                         self.force.dispZ = self.force.disp_border(self.force.dispZ, self.FVmesh.neighbours,
@@ -235,18 +236,19 @@ class Model(object):
                             self.mapero.Ke = Ke
                             self.mapero.thickness = Th
                         # Rebuild the computational mesh
-                        self.rebuild_mesh()
+                        self.rebuild_mesh(verbose)
                         # Update the stratigraphic mesh
                         if self.input.laytime > 0 and self.strata:
                             if self.input.region == 0:
-                                self.strata[0].move_mesh(regdX[0], regdY[0], scum, verbose=False)
+                                self.strata[0].move_mesh(regdX[0], regdY[0], scum, verbose)
                             else:
                                 for rid in range(self.input.region):
-                                    self.strata[rid].move_mesh(regdX[rid], regdY[rid], scum, verbose=False)
+                                    self.strata[rid].move_mesh(regdX[rid], regdY[rid], scum, verbose)
 
             # Compute stream network
             self.fillH, self.elevation = buildFlux.streamflow(self.input, self.FVmesh, self.recGrid, self.force, self.hillslope, \
                                               self.flow, self.elevation, self.lGIDs, self.rain, self.tNow, verbose)
+
             # Compute isostatic flexure
             if self.tNow >= self.force.next_flexure:
                 flextime = time.clock()
