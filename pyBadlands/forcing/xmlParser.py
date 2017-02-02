@@ -795,7 +795,7 @@ class xmlParser:
             if element is not None:
                 self.fillmax = float(element.text)
             else:
-                self.fillmax = 1.
+                self.fillmax = 200.
             element = None
             element = spl.find('m')
             if element is not None:
