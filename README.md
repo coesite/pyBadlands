@@ -2,7 +2,7 @@ pyBadlands - python version of Badlands
 =====
 
 [![DOI](https://zenodo.org/badge/51286954.svg)](https://zenodo.org/badge/latestdoi/51286954)
-    
+
 <div align="center">
     <img width=500 src="https://github.com/badlands-model/Badlands-doc/blob/master/figures/sketch.png" alt="sketch Badlands" title="sketch of Badlands range of models."</img>
 </div>
@@ -30,7 +30,7 @@ The model is based on the following characteristics:
 * Node ordering is perform efficiently based on the work from [**Braun & Willett (2013)**](http://www.sciencedirect.com/science/article/pii/S0169555X12004618),
 * 3D surface deformations using the node refinement technique proposed by [**Thieulot et al. ( 2014)**](http://onlinelibrary.wiley.com/doi/10.1002/2014GC005490/abstract;jsessionid=48A885F79A40B1E3E76AFC1BEAA2B238.f03t03).
 * Orographic precipitation using [**Smith & Barstad (2004)**](http://journals.ametsoc.org/doi/abs/10.1175/1520-0469(2004)061%3C1377%3AALTOOP%3E2.0.CO%3B2) linear model to compute topographic induced rain field.
-* Varying erodibility layers (both horizontally and vertically) to simulate impact of changing sediment characteristics on landscape evolution. 
+* Varying erodibility layers (both horizontally and vertically) to simulate impact of changing sediment characteristics on landscape evolution.
 
 A set of functions for _pre_ & _post_-processing of **Badlands** inputs and outputs is available in a GitHub [**Companion**](https://github.com/badlands-model/pyBadlands-Companion) repository which is already shipped with the Badlands Docker container.
 
@@ -44,7 +44,7 @@ You should have received a copy of the GNU Lesser General Public License along w
 
 ### Reporting  
 
-If you come accross a bug or if you need some help compiling or using the code you can: 
+If you come accross a bug or if you need some help compiling or using the code you can:
 
 - go through our mailing list [Archive](http://mailman.sydney.edu.au/pipermail/badlands/).
 - subscribe to our [mailing list](http://mailman.sydney.edu.au/mailman/listinfo/badlands).
@@ -68,7 +68,7 @@ A compilation of notebooks with examples are proposed to give you a quick feelin
 
 ### Published research study using Badlands:
 
-+ **Salles, T., N. Flament, and D. Muller: [Influence of mantle flow on the drainage of eastern Australia since the Jurassic Period](http://dx.doi.org/10.1002/2016GC006617), Geochem. Geophys. Geosyst., 18, doi:10.1002/2016GC006617, 2017.** 
++ **Salles, T., N. Flament, and D. Muller: [Influence of mantle flow on the drainage of eastern Australia since the Jurassic Period](http://dx.doi.org/10.1002/2016GC006617), Geochem. Geophys. Geosyst., 18, doi:10.1002/2016GC006617, 2017.**
 [Supplementary materials: Australian Landscape Dynamic](https://github.com/badlands-model/g-cubed-2016)
 
 <div align="center">
