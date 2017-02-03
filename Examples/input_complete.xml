@@ -29,9 +29,10 @@
         <start>0.</start>
         <!-- Simulation end time [a] -->
         <end>100000.</end>
-        <!-- Minimum time step [a] (optional) -->
+        <!-- Minimum time step [a]. Default is 1. -->
         <mindt>1.</mindt>
-        <!-- Maximum time step [a] (optional) -->
+        <!-- Maximum time step [a] (optional).
+             Set to display interval is not provided. -->
         <maxdt>1000.</maxdt>
         <!-- Display interval [a] -->
         <display>5000.</display>
